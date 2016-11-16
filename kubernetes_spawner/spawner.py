@@ -213,6 +213,7 @@ class KubernetesSpawner(Spawner):
             container.add_volume(vol_name, volume_path)
             new_pod.add_container(container)
 
+            self.log.debug("Pod desc '%s'", new_pod)
             self.client.launch_pod(new_pod)
             pod = yield self.wait_for_new_pod()
         else:
@@ -260,7 +261,8 @@ class KubernetesSpawner(Spawner):
             port = self.hub_port
         elif self.hub_ip_from_service:
             api_service = self.client.get_service(self.hub_ip_from_service)
-            ip = api_service.status.load_balancer.ingress[0].ip
+            self.log.debug("Api service %s", api_service)
+            ip = api_service.spec.cluster_ip
             port = None
         else:
             return self.hub.api_url
