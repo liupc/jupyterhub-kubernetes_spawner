@@ -17,10 +17,11 @@ data:
     c.JupyterHub.spawner_class = 'kubernetes_spawner.KubernetesSpawner'
     c.KubernetesSpawner.verify_ssl = False
     c.KubernetesSpawner.hub_ip_from_service = 'jupyterhub'
-    c.KubernetesSpawner.container_image = 'danielfrg/jupyterhub-kube-ldap-nfs-singleuser:0.1'
+    c.KubernetesSpawner.container_image = 'docker.d.xiaomi.net/u/liushaohui/jupyterhub-singleuser'
     c.Spawner.notebook_dir = '/mnt/notebooks/%U'
-    c.KubernetesSpawner.persistent_volume_claim_name = 'jupyterhub-volume'
-    c.KubernetesSpawner.persistent_volume_claim_path = '/mnt'
+    c.KubernetesSpawner.volume_mode = 'persistent_volume_claim'
+    c.KubernetesSpawner.persistent_volume_claim_name = 'jupyterhub-storage'
+    c.KubernetesSpawner.volume_mountpath = '/mnt'
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -50,7 +51,7 @@ spec:
           - --error-target
           - http://127.0.0.1:8081/hub/error
       - name: jupyterhub
-        image: danielfrg/jupyterhub-kube-ldap-nfs:0.1
+        image: docker.d.xiaomi.net/u/liushaohui/jupyterhub-kube-ldap-nfs
         ports:
           - containerPort: 8081
         volumeMounts:
