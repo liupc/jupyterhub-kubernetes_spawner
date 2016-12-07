@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jupyterhub-pv
+  labels:
+    name: jupyterhub-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /home/liupengcheng/soft/volumes/jupyterhub-pv
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jupyterhub-storage
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      name: jupyterhub-pv
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jupyterhub-nfs
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: jupyterhub-nfs
+    spec:
+      containers:
+      - name: nfs-server
+        image: docker.d.xiaomi.net/u/liupengcheng/nfs-server
+        ports:
+          - name: nfs
+            containerPort: 2049
+          - name: mountd
+            containerPort: 20048
+          - name: rpcbind
+            containerPort: 111
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: mypvc
+            mountPath: /exports
+      volumes:
+        - name: mypvc
+          persistentVolumeClaim:
+            claimName: jupyterhub-storage
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: jupyterhub-nfs
+spec:
+  ports:
+    - name: nfs
+      port: 2049
+    - name: mountd
+      port: 20048
+    - name: rpcbind
+      port: 111
+  clusterIP: 10.254.238.49 
+  selector:
+    app: jupyterhub-nfs

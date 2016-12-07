@@ -1,0 +1,103 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyterhub-config-py
+data:
+  jupyterhub-config.py: |-
+    c.JupyterHub.confirm_no_ssl = True
+    c.JupyterHub.db_url = 'sqlite:////tmp/jupyterhub.sqlite'
+    c.JupyterHub.cookie_secret_file = '/tmp/jupyterhub_cookie_secret'
+
+    c.Jupyterhub.authenticator_class = 'cas_auth.cas_auth.CasLoginAuthenticator'
+    c.CasLoginAuthenticator.cas_server = 'https://casdev.mioffice.cn' # replace with your cas server url
+    c.CasLoginAuthenticator.service_url = 'http://c3-hadoop-kubernetes01.bj:30001/hub/login' # replace with your jupyterhub login url, /hub/login is required
+
+    c.JupyterHub.spawner_class = 'kubernetes_spawner.KubernetesSpawner'
+    c.KubernetesSpawner.verify_ssl = False
+    c.KubernetesSpawner.host = "http://10.108.36.8:8080" # master url from `kubectl cluster-info`, should be <external ip>:port, replace with your own
+    c.KubernetesSpawner.username = "{{ username }}" # not enabled auth, anystring but not empty
+    c.KubernetesSpawner.password = "{{ password }}" # not enabled auth, anystring but not empty
+    c.KubernetesSpawner.hub_ip_from_service = 'jupyterhub'
+    c.KubernetesSpawner.container_image = 'docker.d.xiaomi.net/u/liushaohui/jupyterhub-singleuser'
+    c.Spawner.notebook_dir = '/mnt/notebooks/%U'
+    c.Spawner.start_timeout = 180 # avoid start timeout
+    #c.KubernetesSpawner.volume_mode = 'persistent_volume_claim'
+    #c.KubernetesSpawner.persistent_volume_claim_name = 'jupyterhub-storage'
+    #c.KubernetesSpawner.volume_mountpath = '/mnt'
+    c.KubernetesSpawner.volume_mode = 'nfs'
+    c.KubernetesSpawner.nfs_server_ip = '10.254.238.49' # nfs server ip, ClusterIP, replace with your own
+    c.KubernetesSpawner.nfs_server_share = '/exports'
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jupyterhub
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: jupyterhub
+    spec:
+      containers:
+      - name: proxy
+        image: jupyterhub/configurable-http-proxy
+        ports:
+          - containerPort: 8000
+          - containerPort: 8001
+        command:
+          - configurable-http-proxy
+          - --ip
+          - 0.0.0.0
+          - --api-ip
+          - 0.0.0.0
+          - --default-target
+          - http://127.0.0.1:8081
+          - --error-target
+          - http://127.0.0.1:8081/hub/error
+      - name: jupyterhub
+      image: docker.d.xiaomi.net/u/liupengcheng/jupyterhub-kube-cas-nfs # replace it if image updated
+        ports:
+          - containerPort: 8081
+        volumeMounts:
+          - name: config-volume
+            mountPath: "/srv/jupyterhub/"
+      volumes:
+        - name: config-volume
+          configMap:
+            name: jupyterhub-config-py
+            items:
+              - key: jupyterhub-config.py
+                path: jupyterhub_config.py
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jupyterhub
+  labels:
+    app: jupyterhub
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8000
+    nodePort: 30001
+  clusterIP: 10.254.100.1
+  selector:
+    app: jupyterhub
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jupyterhub-api
+  labels:
+    app: jupyterhub-api
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8001
+  clusterIP: 10.254.100.2
+  selector:
+    app: jupyterhub
