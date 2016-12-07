@@ -1,3 +1,59 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ldap-database-pv
+  labels:
+    name: ldap-database-pv
+spec:
+  capacity: 
+    storage: 1Gi
+  hostPath:
+    path: /home/liupengcheng/soft/volumes/ldap-database-pv
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ldap-config-pv
+  labels:
+    name: ldap-config-pv
+spec:
+  capacity:
+    storage: 1Gi
+  hostPath:
+    path: /home/liupengcheng/soft/volumes/ldap-config-pv
+  accessModes:
+    - ReadWriteOnce
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ldap-database-pvc
+spec:
+  resources:
+    requests:
+        storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  selector:
+    matchLabels: 
+        name: ldap-database-pv
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ldap-config-pvc
+spec:
+  resources:
+    requests:
+      storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  selector:
+    matchLabels:
+      name: ldap-config-pv
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -15,6 +71,11 @@ spec:
         ports:
           - containerPort: 389
           - containerPort: 636
+        volumeMounts:
+          - name: ldap-database-vol
+            mountPath: /var/lib/ldap 
+          - name: ldap-config-vol
+            mountPath: /etc/ldap/slapd.d
       - name: phpldapadmin
         image: osixia/phpldapadmin
         ports:
@@ -24,6 +85,13 @@ spec:
           value: "false"
         - name: PHPLDAPADMIN_LDAP_HOSTS
           value: localhost
+      volumes:
+        - name: ldap-database-vol
+          persistentVolumeClaim:
+            claimName: ldap-database-pvc
+        - name: ldap-config-vol
+          persistentVolumeClaim:
+            claimName: ldap-config-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -37,6 +105,7 @@ spec:
   - name: ldap-ssl
     port: 636
     targetPort: 636
+  clusterIP: 10.254.93.215 
   selector:
     app: jupyterhub-ldap
 ---
@@ -49,5 +118,6 @@ spec:
   ports:
   - port: 80
     targetPort: 80
+  clusterIP: 10.254.208.74
   selector:
     app: jupyterhub-ldap

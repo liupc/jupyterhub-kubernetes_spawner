@@ -11,17 +11,24 @@ data:
 
     c.JupyterHub.authenticator_class = 'ldapauthenticator.LDAPAuthenticator'
     c.LDAPAuthenticator.bind_dn_template = 'cn={username},cn=jupyterhub,dc=example,dc=org'
-    c.LDAPAuthenticator.server_address = '{{ LDAP_SERVICE }}'
+    c.LDAPAuthenticator.server_address = '{{ ldap address }}' # ClusterIP of ldap service
     c.LDAPAuthenticator.use_ssl = False
 
     c.JupyterHub.spawner_class = 'kubernetes_spawner.KubernetesSpawner'
     c.KubernetesSpawner.verify_ssl = False
+    c.KubernetesSpawner.host = "{{ master url }}" # master url from `kubectl cluster-info`, should be <external ip>:port
+    c.KubernetesSpawner.username = "{{ username }}" # not enabled auth, anystring but not empty
+    c.KubernetesSpawner.password = "{{ password }}" # not enabled auth, anystring but not empty
     c.KubernetesSpawner.hub_ip_from_service = 'jupyterhub'
     c.KubernetesSpawner.container_image = 'docker.d.xiaomi.net/u/liushaohui/jupyterhub-singleuser'
     c.Spawner.notebook_dir = '/mnt/notebooks/%U'
-    c.KubernetesSpawner.volume_mode = 'persistent_volume_claim'
-    c.KubernetesSpawner.persistent_volume_claim_name = 'jupyterhub-storage'
-    c.KubernetesSpawner.volume_mountpath = '/mnt'
+    c.Spawner.start_timeout = 180 # avoid start timeout
+    #c.KubernetesSpawner.volume_mode = 'persistent_volume_claim'
+    #c.KubernetesSpawner.persistent_volume_claim_name = 'jupyterhub-storage'
+    #c.KubernetesSpawner.volume_mountpath = '/mnt'
+    c.KubernetesSpawner.volume_mode = 'nfs'
+    c.KubernetesSpawner.nfs_server_ip = '{{ nfs_server_ip }}' # nfs server ip, ClusterIP
+    c.KubernetesSpawner.nfs_server_share = '/exports'
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -72,10 +79,12 @@ metadata:
   labels:
     app: jupyterhub
 spec:
-  type: LoadBalancer
+  type: NodePort
   ports:
   - port: 80
     targetPort: 8000
+    nodePort: 30001
+  clusterIP: 10.254.100.1
   selector:
     app: jupyterhub
 ---
@@ -86,9 +95,10 @@ metadata:
   labels:
     app: jupyterhub-api
 spec:
-  type: LoadBalancer
+  type: NodePort
   ports:
   - port: 80
     targetPort: 8001
+  clusterIP: 10.254.100.2
   selector:
     app: jupyterhub

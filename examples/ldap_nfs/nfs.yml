@@ -1,14 +1,29 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jupyterhub-pv
+  labels:
+    name: jupyterhub-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /home/liupengcheng/soft/volumes/jupyterhub-pv
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: jupyterhub-storage
-  annotations:
-    volume.alpha.kubernetes.io/storage-class: any
 spec:
-  accessModes: ["ReadWriteOnce"]
+  accessModes: ["ReadWriteMany"]
   resources:
     requests:
-      storage: 500Gi
+      storage: 5Gi
+  selector:
+    matchLabels:
+      name: jupyterhub-pv
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -23,7 +38,7 @@ spec:
     spec:
       containers:
       - name: nfs-server
-        image: gcr.io/google-samples/nfs-server:1.1
+        image: docker.d.xiaomi.net/u/liupengcheng/nfs-server
         ports:
           - name: nfs
             containerPort: 2049
@@ -53,5 +68,6 @@ spec:
       port: 20048
     - name: rpcbind
       port: 111
+  clusterIP: 10.254.238.49 
   selector:
     app: jupyterhub-nfs
